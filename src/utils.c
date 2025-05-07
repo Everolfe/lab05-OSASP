@@ -19,7 +19,6 @@ extern pthread_cond_t not_empty;
 extern pthread_cond_t not_full;
 _Thread_local volatile sig_atomic_t thread_continue = 1;
 
-// Atomic counters for producers and consumers
 atomic_int producer_count = 0;
 atomic_int consumer_count = 0;
 
@@ -34,7 +33,6 @@ void thread_stop_handler(int signo)
 
 void* consumer_routine(void* arg)
 {
-    // Setup signal handler
     struct sigaction sa;
     sa.sa_handler = thread_stop_handler;
     sigemptyset(&sa.sa_mask);
@@ -52,19 +50,18 @@ void* consumer_routine(void* arg)
     while (thread_continue) 
     {
         if (sem_wait(consumer) != 0) {
-            if (errno == EINTR) continue; // Interrupted by signal
+            if (errno == EINTR) continue; 
             perror("sem_wait failed in consumer");
             break;
         }
         
         if (sem_wait(mutex) != 0) {
-            sem_post(consumer); // Restore semaphore
+            sem_post(consumer); 
             if (errno == EINTR) continue;
             perror("sem_wait failed in consumer");
             break;
         }
 
-        // Critical section
         if (ring->cur > 0) 
         {  
             mes_t* temp = ring->head->message;
@@ -86,14 +83,12 @@ void* consumer_routine(void* arg)
     sem_close(consumer);
     sem_close(mutex);
 
-    // Increment the consumer counter
     printf("\nConsumer %d has finished\n", atomic_fetch_add(&consumer_count, 1) + 1);
     return NULL;
 }
 
 void* producer_routine(void* arg)
 {
-    // Setup signal handler
     struct sigaction sa;
     sa.sa_handler = thread_stop_handler;
     sigemptyset(&sa.sa_mask);
@@ -123,7 +118,6 @@ void* producer_routine(void* arg)
             break;
         }
 
-        // Critical section
         if (ring->cur < ring->size) 
         {  
             push(&ring->head, &ring->tail);
@@ -144,14 +138,13 @@ void* producer_routine(void* arg)
     sem_close(producer);
     sem_close(mutex);
 
-    // Increment the producer counter
+
     printf("\nProducer %d has finished\n", atomic_fetch_add(&producer_count, 1) + 1);
     return NULL;
 }
 
 void* consumer_routine_cond(void* arg)
 {
-    // Setup signal handler
     struct sigaction sa;
     sa.sa_handler = thread_stop_handler;
     sigemptyset(&sa.sa_mask);
@@ -162,18 +155,15 @@ void* consumer_routine_cond(void* arg)
     {
         pthread_mutex_lock(&ring_mutex);
         
-        // Wait while buffer is empty and thread should continue
         while (ring->cur <= 0 && thread_continue) {
             pthread_cond_wait(&not_empty, &ring_mutex);
         }
         
-        // Check if we need to stop
         if (!thread_continue) {
             pthread_mutex_unlock(&ring_mutex);
             break;
         }
 
-        // Critical section
         if (ring->cur > 0) 
         {  
             mes_t* temp = ring->head->message;
@@ -185,7 +175,6 @@ void* consumer_routine_cond(void* arg)
             ring->deleted++;
             ring->cur--;
 
-            // Signal producers that space is available
             pthread_cond_signal(&not_full);
         }
 
@@ -193,14 +182,12 @@ void* consumer_routine_cond(void* arg)
         sleep(SLEEP_TIME);
     }
 
-    // Increment the consumer counter
     printf("\nConsumer %d has finished\n", atomic_fetch_add(&consumer_count, 1) + 1);
     return NULL;
 }
 
 void* producer_routine_cond(void* arg)
 {
-    // Setup signal handler
     struct sigaction sa;
     sa.sa_handler = thread_stop_handler;
     sigemptyset(&sa.sa_mask);
@@ -211,18 +198,15 @@ void* producer_routine_cond(void* arg)
     {
         pthread_mutex_lock(&ring_mutex);
         
-        // Wait while buffer is full and thread should continue
         while (ring->cur >= ring->size && thread_continue) {
             pthread_cond_wait(&not_full, &ring_mutex);
         }
         
-        // Check if we need to stop
         if (!thread_continue) {
             pthread_mutex_unlock(&ring_mutex);
             break;
         }
 
-        // Critical section
         if (ring->cur < ring->size) 
         {  
             push(&ring->head, &ring->tail);
@@ -233,7 +217,6 @@ void* producer_routine_cond(void* arg)
             printf("--Append %ld message:\n", ring->added);
             print_mes(ring->tail->message);
 
-            // Signal consumers that data is available
             pthread_cond_signal(&not_empty);
         }
 
@@ -241,7 +224,6 @@ void* producer_routine_cond(void* arg)
         sleep(SLEEP_TIME);
     }
 
-    // Increment the producer counter
     printf("\nProducer %d has finished\n", atomic_fetch_add(&producer_count, 1) + 1);
     return NULL;
 }

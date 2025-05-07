@@ -35,50 +35,66 @@ void pop(node_t** head, node_t** tail)
             *head = (*head)->next;
             (*head)->prev = *tail;
 
-            // Освобождаем память для данных сообщения и самого сообщения
             if (temp->message != NULL) {
-                free(temp->message->data);  // Освобождаем данные
-                free(temp->message);        // Освобождаем само сообщение
+                free(temp->message->data);  
+                free(temp->message);      
             }
 
-            free(temp);  // Освобождаем сам узел
+            free(temp);  
         } 
         else 
         {
-            // В случае одного элемента в кольцевом буфере
             if (*head != NULL && (*head)->message != NULL) {
-                free((*head)->message->data);  // Освобождаем данные
-                free((*head)->message);        // Освобождаем само сообщение
+                free((*head)->message->data);  
+                free((*head)->message);        
             }
-            free(*head);  // Освобождаем сам узел
+            free(*head); 
             *head = NULL;
             *tail = NULL;
         }
     }
 }
 
+uint16_t crc16(const uint8_t *data, size_t length) 
+{
+    uint16_t crc = 0xFFFF;  // Initial value
+    for (size_t i = 0; i < length; ++i) 
+    {
+        crc ^= (uint16_t)data[i] << 8;
+        for (int j = 0; j < 8; ++j) 
+        {
+            if (crc & 0x8000)
+                crc = (crc << 1) ^ 0x1021; 
+            else
+                crc <<= 1;
+        }
+    }
+    return crc;
+}
 
 void init_mes(mes_t* message) 
 {
     const char letters[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     message->type = 0;
-    message->hash = 0;
     message->size = rand() % 257;
     message->data = (uint8_t*)malloc(message->size * sizeof(uint8_t));
     
+    // Заполняем массив данных случайными символами
     for (size_t i = 0; i < message->size; i++) 
     {
-        message->data[i] = letters[rand() % 53];
-        message->hash += message->data[i];
+        message->data[i] = letters[rand() % (sizeof(letters) - 1)];
     }
-    message->hash = ~message->hash;
+    
+    message->hash = crc16(message->data, message->size);
 }
+
+
 
 void print_mes(mes_t* mes) 
 {
     if(mes!=NULL){
-        printf("Message type: %d, hash: %d, size: %d, data: ", mes->type, mes->hash, mes->size);
+        printf("Message type: %d, hash: %04x, size: %d, data: ", mes->type, mes->hash, mes->size);
         for(size_t i = 0; i<mes->size; i++)
             printf("%c", mes->data[i]);
         printf("\n");
@@ -91,38 +107,32 @@ void print_mes(mes_t* mes)
 void ring_clear(ring_t* ring) {
     if (!ring) return;
 
-    // Если кольцо пустое, сразу выходим
     if (ring->head == NULL) {
         return;
     }
 
-    // Итерируем по кольцу и освобождаем все узлы
     node_t* current = ring->head;
     do {
         node_t* temp = current;
         current = current->next;
 
-        // Освобождаем память для сообщения
         if (temp->message) {
             mes_clear(temp->message);
             free(temp->message);
         }
 
-        // Освобождаем память для узла
         free(temp);
-    } while (current != ring->head); // Пока не вернулись в начало кольца
+    } while (current != ring->head); 
 
-    // После очистки обнуляем все поля кольца
     ring->head = NULL;
     ring->tail = NULL;
     ring->added = 0;
     ring->deleted = 0;
     ring->cur = 0;
-    ring->size = 0;  // Размер кольца можно сбросить, если нужно
+    ring->size = 0;  
 }
 
 
-// Очистка отдельного сообщения
 void mes_clear(mes_t* msg) {
     if (!msg) return;
     

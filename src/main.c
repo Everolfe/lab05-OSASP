@@ -28,7 +28,6 @@ sem_t* producer;
 sem_t* consumer;
 sem_t* mutex;
 
-// Для реализации с условными переменными
 pthread_mutex_t ring_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t not_full = PTHREAD_COND_INITIALIZER;
