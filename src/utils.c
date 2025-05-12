@@ -155,8 +155,11 @@ void* consumer_routine_cond(void* arg)
     {
         pthread_mutex_lock(&ring_mutex);
         
+        struct timespec ts;
         while (ring->cur <= 0 && thread_continue) {
-            pthread_cond_wait(&not_empty, &ring_mutex);
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_sec += 1;
+            pthread_cond_timedwait(&not_empty, &ring_mutex, &ts);
         }
         
         if (!thread_continue) {
@@ -175,7 +178,8 @@ void* consumer_routine_cond(void* arg)
             ring->deleted++;
             ring->cur--;
 
-            pthread_cond_signal(&not_full);
+            // Будим всех ожидающих производителей
+            pthread_cond_broadcast(&not_full);
         }
 
         pthread_mutex_unlock(&ring_mutex);
@@ -198,9 +202,13 @@ void* producer_routine_cond(void* arg)
     {
         pthread_mutex_lock(&ring_mutex);
         
+        struct timespec ts;
         while (ring->cur >= ring->size && thread_continue) {
-            pthread_cond_wait(&not_full, &ring_mutex);
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_sec += 1; // ждём максимум 1 секунду
+            pthread_cond_timedwait(&not_full, &ring_mutex, &ts);
         }
+
         
         if (!thread_continue) {
             pthread_mutex_unlock(&ring_mutex);
@@ -217,7 +225,8 @@ void* producer_routine_cond(void* arg)
             printf("--Append %ld message:\n", ring->added);
             print_mes(ring->tail->message);
 
-            pthread_cond_signal(&not_empty);
+            // Будим всех ожидающих потребителей
+            pthread_cond_broadcast(&not_empty);
         }
 
         pthread_mutex_unlock(&ring_mutex);

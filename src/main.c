@@ -145,11 +145,19 @@ int main()
         }
         case '+':
         {
-            sem_wait(mutex);
-            ring->size++;
-            sem_post(mutex);
+            if (sync_method == 0) {
+                sem_wait(mutex);
+                ring->size++;
+                sem_post(mutex);
+            } else {
+                pthread_mutex_lock(&ring_mutex);
+                ring->size++;
+                pthread_cond_broadcast(&not_full);
+                pthread_mutex_unlock(&ring_mutex);
+            }
             break;
         }
+        
         case '-':
         {
             if (sync_method == 0) {
@@ -173,6 +181,7 @@ int main()
                         ring->cur--;
                     }
                     pthread_cond_broadcast(&not_full);
+                    pthread_cond_broadcast(&not_empty);
                 } else {
                     printf("\nRING IS EMPTY\n");
                 }
@@ -240,7 +249,9 @@ int main()
     if (stop_flag) {
         graceful_shutdown(producer_threads, &producer_threads_count, consumer_threads, &consumer_threads_count, producer, consumer, mutex);
     }
-    
+    pthread_cond_broadcast(&not_empty);
+    pthread_cond_broadcast(&not_full);
+
     return 0;
 }
 
@@ -254,6 +265,7 @@ void graceful_shutdown(
     pthread_t* consumer_threads, size_t* consumer_threads_count,
     sem_t* producer, sem_t* consumer, sem_t* mutex)
 {
+    
     while (*producer_threads_count > 0) {
         pthread_kill(producer_threads[--(*producer_threads_count)], SIGUSR1);
         pthread_join(producer_threads[*producer_threads_count], NULL);
